@@ -630,9 +630,118 @@ func (rm *resourceManager) sdkUpdate(
 	desired *resource,
 	latest *resource,
 	delta *ackcompare.Delta,
-) (*resource, error) {
-	// TODO(jaypipes): Figure this out...
-	return nil, ackerr.NotImplemented
+) (updated *resource, err error) {
+	rlog := ackrtlog.FromContext(ctx)
+	exit := rlog.Trace("rm.sdkUpdate")
+	defer exit(err)
+	input, err := rm.newUpdateRequestPayload(ctx, desired)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp *svcsdk.UpdateClusterConfigOutput
+	_ = resp
+	resp, err = rm.sdkapi.UpdateClusterConfigWithContext(ctx, input)
+	rm.metrics.RecordAPICall("UPDATE", "UpdateClusterConfig", err)
+	if err != nil {
+		return nil, err
+	}
+	// Merge in the information we read from the API call above to the copy of
+	// the original Kubernetes object we passed to the function
+	ko := desired.ko.DeepCopy()
+
+	if resp.Update.CreatedAt != nil {
+		ko.Status.CreatedAt = &metav1.Time{*resp.Update.CreatedAt}
+	} else {
+		ko.Status.CreatedAt = nil
+	}
+	if resp.Update.Status != nil {
+		ko.Status.Status = resp.Update.Status
+	} else {
+		ko.Status.Status = nil
+	}
+
+	rm.setStatusDefaults(ko)
+	return &resource{ko}, nil
+}
+
+// newUpdateRequestPayload returns an SDK-specific struct for the HTTP request
+// payload of the Update API call for the resource
+func (rm *resourceManager) newUpdateRequestPayload(
+	ctx context.Context,
+	r *resource,
+) (*svcsdk.UpdateClusterConfigInput, error) {
+	res := &svcsdk.UpdateClusterConfigInput{}
+
+	if r.ko.Spec.ClientRequestToken != nil {
+		res.SetClientRequestToken(*r.ko.Spec.ClientRequestToken)
+	}
+	if r.ko.Spec.Logging != nil {
+		f1 := &svcsdk.Logging{}
+		if r.ko.Spec.Logging.ClusterLogging != nil {
+			f1f0 := []*svcsdk.LogSetup{}
+			for _, f1f0iter := range r.ko.Spec.Logging.ClusterLogging {
+				f1f0elem := &svcsdk.LogSetup{}
+				if f1f0iter.Enabled != nil {
+					f1f0elem.SetEnabled(*f1f0iter.Enabled)
+				}
+				if f1f0iter.Types != nil {
+					f1f0elemf1 := []*string{}
+					for _, f1f0elemf1iter := range f1f0iter.Types {
+						var f1f0elemf1elem string
+						f1f0elemf1elem = *f1f0elemf1iter
+						f1f0elemf1 = append(f1f0elemf1, &f1f0elemf1elem)
+					}
+					f1f0elem.SetTypes(f1f0elemf1)
+				}
+				f1f0 = append(f1f0, f1f0elem)
+			}
+			f1.SetClusterLogging(f1f0)
+		}
+		res.SetLogging(f1)
+	}
+	if r.ko.Spec.Name != nil {
+		res.SetName(*r.ko.Spec.Name)
+	}
+	if r.ko.Spec.ResourcesVPCConfig != nil {
+		f3 := &svcsdk.VpcConfigRequest{}
+		if r.ko.Spec.ResourcesVPCConfig.EndpointPrivateAccess != nil {
+			f3.SetEndpointPrivateAccess(*r.ko.Spec.ResourcesVPCConfig.EndpointPrivateAccess)
+		}
+		if r.ko.Spec.ResourcesVPCConfig.EndpointPublicAccess != nil {
+			f3.SetEndpointPublicAccess(*r.ko.Spec.ResourcesVPCConfig.EndpointPublicAccess)
+		}
+		if r.ko.Spec.ResourcesVPCConfig.PublicAccessCIDRs != nil {
+			f3f2 := []*string{}
+			for _, f3f2iter := range r.ko.Spec.ResourcesVPCConfig.PublicAccessCIDRs {
+				var f3f2elem string
+				f3f2elem = *f3f2iter
+				f3f2 = append(f3f2, &f3f2elem)
+			}
+			f3.SetPublicAccessCidrs(f3f2)
+		}
+		if r.ko.Spec.ResourcesVPCConfig.SecurityGroupIDs != nil {
+			f3f3 := []*string{}
+			for _, f3f3iter := range r.ko.Spec.ResourcesVPCConfig.SecurityGroupIDs {
+				var f3f3elem string
+				f3f3elem = *f3f3iter
+				f3f3 = append(f3f3, &f3f3elem)
+			}
+			f3.SetSecurityGroupIds(f3f3)
+		}
+		if r.ko.Spec.ResourcesVPCConfig.SubnetIDs != nil {
+			f3f4 := []*string{}
+			for _, f3f4iter := range r.ko.Spec.ResourcesVPCConfig.SubnetIDs {
+				var f3f4elem string
+				f3f4elem = *f3f4iter
+				f3f4 = append(f3f4, &f3f4elem)
+			}
+			f3.SetSubnetIds(f3f4)
+		}
+		res.SetResourcesVpcConfig(f3)
+	}
+
+	return res, nil
 }
 
 // sdkDelete deletes the supplied resource in the backend AWS service API

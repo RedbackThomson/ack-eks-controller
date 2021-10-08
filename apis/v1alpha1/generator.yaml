@@ -1,3 +1,8 @@
+operations:
+  UpdateClusterConfig:
+    operation_type:
+      - Update
+    resource_name: Cluster
 resources:
   Addon:
     renames:
@@ -46,6 +51,9 @@ resources:
         - MissingAction
         - MissingParameter
         - ValidationError
+    hooks:
+      delta_pre_compare:
+        template_path: hooks/cluster/delta_pre_compare.go.tpl
   FargateProfile:
     renames:
       operations:

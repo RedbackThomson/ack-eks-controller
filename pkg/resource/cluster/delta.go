@@ -40,6 +40,9 @@ func newResourceDelta(
 		delta.Add("", a, b)
 		return delta
 	}
+	if a.ko.Spec.Tags == nil && b.ko.Spec.Tags != nil {
+		a.ko.Spec.Tags = make(map[string]*string, 0)
+	}
 
 	if ackcompare.HasNilDifference(a.ko.Spec.ClientRequestToken, b.ko.Spec.ClientRequestToken) {
 		delta.Add("Spec.ClientRequestToken", a.ko.Spec.ClientRequestToken, b.ko.Spec.ClientRequestToken)
